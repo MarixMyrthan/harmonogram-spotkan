@@ -1,0 +1,4 @@
+project_id = "harmonogram-spotkan"
+
+[functions.activate-member]
+verify_jwt = false
