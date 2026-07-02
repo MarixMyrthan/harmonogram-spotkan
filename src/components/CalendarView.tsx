@@ -14,7 +14,9 @@ interface CalendarViewProps {
 function getDayClass(entries: Availability[], profileCount: number): string {
   if (entries.length === 0) return ''
   if (entries.some((entry) => entry.status === 'unavailable')) return ' unavailable-day'
-  if (entries.some((entry) => entry.status === 'unsure')) return ' unsure-day'
+  if (entries.length === profileCount && entries.some((entry) => entry.status === 'unsure')) {
+    return ' unsure-day'
+  }
   if (entries.length === profileCount) return ' everyone'
   return ' partial'
 }
@@ -83,7 +85,12 @@ export function CalendarView({ month, profiles, availability, currentUserId, onS
                 <span className="person-count"><UsersRound size={14} /> {entries.length}/{profiles.length}</span>
                 <div className="mini-names">
                   {entries.slice(0, 3).map((entry) => (
-                    <span key={entry.user_id}>{profileById.get(entry.user_id)?.display_name}</span>
+                    <span
+                      className={`status-pill status-${entry.status}`}
+                      key={entry.user_id}
+                    >
+                      {profileById.get(entry.user_id)?.display_name}
+                    </span>
                   ))}
                   {entries.length > 3 && <span>+{entries.length - 3}</span>}
                 </div>

@@ -106,7 +106,10 @@ input:disabled, textarea:disabled { background: #f2f3f6; color: #9aa2b1; }
 .day-summary { margin-top: auto; display: grid; gap: .45rem; }
 .person-count { display: inline-flex; align-items: center; gap: .35rem; color: var(--muted); font-size: .78rem; font-weight: 750; }
 .mini-names { display: flex; flex-wrap: wrap; gap: .25rem; }
-.mini-names span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 7px; padding: .18rem .35rem; font-size: .67rem; color: #556076; }
+.mini-names span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 7px; padding: .18rem .35rem; font-size: .67rem; font-weight: 750; }
+.mini-names .status-available { background: var(--day-green-soft); border: 1px solid #86d7a1; color: #166534; }
+.mini-names .status-unsure { background: var(--day-yellow-soft); border: 1px solid #e8c66a; color: #854d0e; }
+.mini-names .status-unavailable { background: var(--day-red-soft); border: 1px solid #ef9aa3; color: #991b1b; }
 .legend { padding: .9rem 1.1rem; display: flex; flex-wrap: wrap; gap: 1rem; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--border); }
 .legend span { display: flex; align-items: center; gap: .4rem; }
 .legend-dot { width: 12px; height: 12px; border-radius: 4px; }
@@ -215,7 +218,9 @@ input:disabled, textarea:disabled { background: #f2f3f6; color: #9aa2b1; }
   .brand-inline, .profile-button, .icon-button, .secondary-button, label, .status-fieldset legend { color: #dbe1eb; }
   .calendar-day:not(.empty):hover { filter: brightness(1.08); }
   .calendar-day.empty { background: #161a21; }
-  .mini-names span { color: #bdc5d2; }
+  .mini-names .status-available { color: #bbf7d0; }
+  .mini-names .status-unsure { color: #fde68a; }
+  .mini-names .status-unavailable { color: #fecaca; }
   .form-message { background: #3b2d1b; color: #ffd59b; }
   .status-option.selected { box-shadow: 0 0 0 3px rgba(96,165,250,.16); }
   .welcome-banner { color: #c9ddff; border-color: #2b4d7f; }
