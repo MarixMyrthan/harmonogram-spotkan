@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Check, CircleHelp, UsersRound, X } from 'lucide-react'
+import { Check, CircleHelp, Mail, UsersRound, X } from 'lucide-react'
 import type { Availability, Profile } from '../types'
 import { buildMonthGrid, toDateKey, WEEKDAYS } from '../lib/date'
 
@@ -64,6 +64,8 @@ export function CalendarView({ month, profiles, availability, currentUserId, onS
           const entries = (byDay.get(key) || []).filter((entry) => profileById.has(entry.user_id))
           const ownEntry = entries.find((entry) => entry.user_id === currentUserId)
           const statusClass = getDayClass(entries, profiles.length)
+          const visibleEntries = entries.slice(0, 5)
+          const hiddenCount = Math.max(0, entries.length - visibleEntries.length)
 
           return (
             <button
@@ -84,15 +86,31 @@ export function CalendarView({ month, profiles, availability, currentUserId, onS
               <div className="day-summary">
                 <span className="person-count"><UsersRound size={14} /> {entries.length}/{profiles.length}</span>
                 <div className="mini-names">
-                  {entries.slice(0, 3).map((entry) => (
+                  <div className="mini-name-list">
+                    {visibleEntries.map((entry) => {
+                      const hasExtraInfo = Boolean(entry.note?.trim() || entry.place?.trim())
+
+                      return (
+                        <span
+                          className={`status-pill status-${entry.status}`}
+                          key={entry.user_id}
+                          title={hasExtraInfo ? 'Dodano godziny, uwagę lub propozycję miejsca' : undefined}
+                        >
+                          {profileById.get(entry.user_id)?.display_name}
+                          {hasExtraInfo && <Mail className="note-indicator" size={11} aria-hidden="true" />}
+                        </span>
+                      )
+                    })}
+                  </div>
+                  {hiddenCount > 0 && (
                     <span
-                      className={`status-pill status-${entry.status}`}
-                      key={entry.user_id}
+                      className="more-people-count"
+                      title={`Pozostałych osób: ${hiddenCount}`}
+                      aria-label={`Pozostałych osób: ${hiddenCount}`}
                     >
-                      {profileById.get(entry.user_id)?.display_name}
+                      +{hiddenCount}
                     </span>
-                  ))}
-                  {entries.length > 3 && <span>+{entries.length - 3}</span>}
+                  )}
                 </div>
               </div>
             </button>
