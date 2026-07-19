@@ -347,7 +347,7 @@ input:disabled, textarea:disabled { background: #f2f3f6; color: #9aa2b1; }
   --day-red: #7c3aed;
   --day-red-soft: #ede9fe;
 }
-.colorblind-mode .mini-names .status-unavailable { background: var(--day-red-soft); border-color: #c4b5fd; color: #5b21b6; }
+.colorblind-mode .mini-names .status-unavailable { background: var(--day-red-soft); border-color: currentColor; color: #5b21b6; }
 .colorblind-badge { padding: .15rem .38rem; border-radius: 999px; font-size: .66rem; font-weight: 800; color: #6d28d9; background: #ede9fe; }
 .accessibility-button { display: inline-flex; align-items: center; justify-content: center; gap: .45rem; border: 1px solid var(--border); border-radius: 11px; padding: .67rem .85rem; background: var(--surface-soft); color: var(--muted); font-weight: 750; cursor: pointer; }
 .accessibility-button.enabled { border-color: #c4b5fd; background: #ede9fe; color: #6d28d9; }
@@ -375,7 +375,9 @@ input:disabled, textarea:disabled { background: #f2f3f6; color: #9aa2b1; }
     --day-red: #c4b5fd;
     --day-red-soft: #35205f;
   }
-  .colorblind-mode .mini-names .status-unavailable { border-color: #7c3aed; color: #ddd6fe; }
+  .colorblind-mode .mini-names .status-unavailable { border-color: currentColor; color: #ddd6fe; }
   .colorblind-badge, .accessibility-button.enabled { border-color: #6d28d9; background: #35205f; color: #ddd6fe; }
   .upcoming-table-wrap { box-shadow: none; }
 }
+
+

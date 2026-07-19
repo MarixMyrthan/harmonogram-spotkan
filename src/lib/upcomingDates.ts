@@ -5,6 +5,7 @@ export interface CandidateDate {
   day: string
   availableCount: number
   unsureCount: number
+  entries: Availability[]
 }
 
 export function findUpcomingDates(
@@ -20,6 +21,7 @@ export function findUpcomingDates(
 
   for (const entry of availability) {
     if (entry.day < today || !activeIds.has(entry.user_id)) continue
+
     const list = byDay.get(entry.day) || []
     list.push(entry)
     byDay.set(entry.day, list)
@@ -27,17 +29,35 @@ export function findUpcomingDates(
 
   return [...byDay.entries()]
     .map(([day, entries]) => {
-      const uniqueEntries = new Map(entries.map((entry) => [entry.user_id, entry]))
-      const values = [...uniqueEntries.values()]
+      const uniqueEntries = new Map(
+        entries.map((entry) => [entry.user_id, entry]),
+      )
+
+      const values = profiles
+        .map((profile) => uniqueEntries.get(profile.id))
+        .filter((entry): entry is Availability => Boolean(entry))
+
       if (values.length !== profiles.length) return null
       if (values.some((entry) => entry.status === 'unavailable')) return null
 
-      const availableCount = values.filter((entry) => entry.status === 'available').length
-      const unsureCount = values.filter((entry) => entry.status === 'unsure').length
-      return { day, availableCount, unsureCount }
+      const availableCount = values.filter(
+        (entry) => entry.status === 'available',
+      ).length
+
+      const unsureCount = values.filter(
+        (entry) => entry.status === 'unsure',
+      ).length
+
+      return {
+        day,
+        availableCount,
+        unsureCount,
+        entries: values,
+      }
     })
-    .filter((candidate): candidate is CandidateDate => Boolean(candidate))
+    .filter(
+      (candidate): candidate is CandidateDate => Boolean(candidate),
+    )
     .sort((a, b) => a.day.localeCompare(b.day))
     .slice(0, limit)
 }
-
