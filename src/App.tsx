@@ -80,6 +80,7 @@ export default function App() {
   const [adminOpen, setAdminOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [secretVideoActive, setSecretVideoActive] = useState(false)
+  const [praiseActive, setPraiseActive] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -89,6 +90,7 @@ export default function App() {
   const [newCode, setNewCode] = useState<string | null>(() => sessionStorage.getItem('new-member-code'))
   const jackpotAudioRef = useRef<HTMLAudioElement | null>(null)
   const marioAudioRef = useRef<HTMLAudioElement | null>(null)
+  const ptsAudioRef = useRef<HTMLAudioElement | null>(null)
   const noticeTimerRef = useRef<number | null>(null)
   const playedEventsRef = useRef(new Set<string>())
 
@@ -102,6 +104,52 @@ export default function App() {
   }, [])
 
   const finishSecretVideo = useCallback(() => setSecretVideoActive(false), [])
+  const closePraise = useCallback(() => {
+    const audio = ptsAudioRef.current
+
+    if (audio) {
+      audio.pause()
+      audio.currentTime = 0
+    }
+
+    setPraiseActive(false)
+  }, [])
+
+  const triggerPraise = useCallback(() => {
+    const audio = ptsAudioRef.current
+    if (!audio) return
+
+    audio.pause()
+    audio.currentTime = 0
+    audio.loop = false
+
+    setPraiseActive(true)
+
+    audio.onended = () => {
+      setPraiseActive(false)
+    }
+
+    void audio.play().catch((error) => {
+      console.error('Nie udało się odtworzyć PTS.mp3:', error)
+      setPraiseActive(false)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!praiseActive) return
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closePraise()
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape)
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [closePraise, praiseActive])
 
   useEffect(() => () => {
     if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current)
@@ -127,8 +175,9 @@ export default function App() {
     const base = import.meta.env.BASE_URL
     jackpotAudioRef.current = new Audio(`${base}audio/JACKPOT.mp3`)
     marioAudioRef.current = new Audio(`${base}audio/Mario.mp3`)
+    ptsAudioRef.current = new Audio(`${import.meta.env.BASE_URL}audio/PTS.mp3`)
 
-    for (const audio of [jackpotAudioRef.current, marioAudioRef.current]) {
+    for (const audio of [jackpotAudioRef.current, marioAudioRef.current, ptsAudioRef.current]) {
       audio.preload = 'auto'
       audio.loop = false
     }
@@ -137,7 +186,7 @@ export default function App() {
       window.removeEventListener('pointerdown', unlock, true)
       window.removeEventListener('keydown', unlock, true)
 
-      const attempts = [jackpotAudioRef.current, marioAudioRef.current]
+      const attempts = [jackpotAudioRef.current, marioAudioRef.current, ptsAudioRef.current]
         .filter((audio): audio is HTMLAudioElement => Boolean(audio))
         .map(async (audio) => {
           const previousVolume = audio.volume
@@ -165,6 +214,7 @@ export default function App() {
       window.removeEventListener('keydown', unlock, true)
       jackpotAudioRef.current?.pause()
       marioAudioRef.current?.pause()
+      ptsAudioRef.current?.pause()
     }
   }, [])
 
@@ -214,6 +264,43 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [playTrack])
+  useEffect(() => {
+    const praisePhrase = 'Praise the Sun'
+    let position = 0
+
+    const handlePraiseKeys = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+
+      if (
+        target?.matches(
+          'input, textarea, select, [contenteditable="true"]',
+        )
+      ) {
+        return
+      }
+
+      if (event.key.length !== 1) return
+
+      if (event.key === praisePhrase[position]) {
+        position += 1
+
+        if (position === praisePhrase.length) {
+          position = 0
+          triggerPraise()
+        }
+
+        return
+      }
+
+      position = event.key === praisePhrase[0] ? 1 : 0
+    }
+
+    window.addEventListener('keydown', handlePraiseKeys)
+
+    return () => {
+      window.removeEventListener('keydown', handlePraiseKeys)
+    }
+  }, [triggerPraise])
 
   const loadProfiles = useCallback(async () => {
     if (!session) return
@@ -504,6 +591,32 @@ export default function App() {
 
       <SecretVideo active={secretVideoActive} onFinish={finishSecretVideo} />
 
+      {praiseActive && (
+        <div
+          className="praise-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Praise the Sun"
+          onClick={closePraise}
+        >
+          <img
+            className="praise-image"
+            src={`${import.meta.env.BASE_URL}images/PTS.jpg`}
+            alt="Praise the Sun"
+            onClick={(event) => event.stopPropagation()}
+            onError={closePraise}
+          />
+
+          <button
+            className="praise-close"
+            type="button"
+            onClick={closePraise}
+            aria-label="Zamknij Praise the Sun"
+          >
+            ×
+          </button>
+        </div>
+      )}
       {notice && (
         <aside className="audio-notice" role="status">
           <span className="audio-notice-message">
@@ -524,6 +637,7 @@ export default function App() {
     </div>
   )
 }
+
 
 
 

@@ -447,3 +447,66 @@ input:disabled, textarea:disabled { background: #f2f3f6; color: #9aa2b1; }
   object-fit: contain;
   pointer-events: none;
 }
+
+/* Easter Egg: Praise the Sun */
+.praise-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10002;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(4px);
+  animation: praise-overlay-in 180ms ease-out;
+}
+
+.praise-image {
+  display: block;
+  width: auto;
+  max-width: min(94vw, 1200px);
+  max-height: calc(100vh - 2rem);
+  object-fit: contain;
+  border-radius: 16px;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.7);
+  animation: praise-image-in 260ms ease-out;
+}
+
+.praise-close {
+  position: absolute;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.praise-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+@keyframes praise-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes praise-image-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
