@@ -381,3 +381,69 @@ input:disabled, textarea:disabled { background: #f2f3f6; color: #9aa2b1; }
 }
 
 
+
+.audio-notice-message {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-width: 0;
+}
+
+.contra-code-icon {
+  width: 1.35em;
+  height: 1.35em;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+/* Ukryte wideo ThePruld */
+.secret-video-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.94);
+  backdrop-filter: blur(4px);
+}
+
+.secret-video-player {
+  display: block;
+  width: min(96vw, 1280px);
+  max-height: calc(100vh - 2rem);
+  object-fit: contain;
+  border-radius: 14px;
+  background: #000;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
+}
+
+.secret-video-close {
+  position: absolute;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.58);
+  color: #fff;
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.secret-video-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.solaire-secret-icon {
+  display: block;
+  width: 31px;
+  height: 31px;
+  object-fit: contain;
+  pointer-events: none;
+}
