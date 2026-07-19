@@ -1,15 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { CalendarDays, ChevronLeft, ChevronRight, Handshake, LogOut, RefreshCw, Settings, ShieldCheck, UsersRound } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Handshake, LogOut, MessageCircle, RefreshCw, Settings, ShieldCheck, UsersRound } from 'lucide-react'
 import { AdminPanel } from './components/AdminPanel'
 import { AuthScreen } from './components/AuthScreen'
 import { Avatar } from './components/Avatar'
 import { CalendarView } from './components/CalendarView'
+import { ChatPanel } from './components/ChatPanel'
 import { DayDialog } from './components/DayDialog'
+import { MatrixRain } from './components/MatrixRain'
 import { ProfileDialog } from './components/ProfileDialog'
-import { addMonths, endOfMonth, monthLabel, startOfMonth, toDateKey } from './lib/date'
+import { UpcomingDates } from './components/UpcomingDates'
+import { addMonths, endOfMonth, longDateLabel, monthLabel, startOfMonth, toDateKey } from './lib/date'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
-import type { Availability, AvailabilityStatus, Profile } from './types'
+import type { Availability, AvailabilityStatus, MeetingEvent, Profile } from './types'
+
+type TrackName = 'jackpot' | 'mario'
+
+interface BlockedTrack {
+  track: TrackName
+  day?: string
+}
 
 function SetupError() {
   return (
@@ -44,7 +54,7 @@ function AccessDenied() {
 
 async function attachAvatarUrls(rawProfiles: Profile[]): Promise<Profile[]> {
   return Promise.all(rawProfiles.map(async (profile) => {
-    if (!profile.avatar_path) return { ...profile, avatar_url: null }
+    if (!profile.avatar_path) return { ...profile, colorblind_mode: Boolean(profile.colorblind_mode), avatar_url: null }
 
     const { data, error } = await supabase.storage
       .from('avatars')
@@ -52,6 +62,7 @@ async function attachAvatarUrls(rawProfiles: Profile[]): Promise<Profile[]> {
 
     return {
       ...profile,
+      colorblind_mode: Boolean(profile.colorblind_mode),
       avatar_url: error ? null : data.signedUrl,
     }
   }))
@@ -63,14 +74,38 @@ export default function App() {
   const [month, setMonth] = useState(startOfMonth(new Date()))
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [availability, setAvailability] = useState<Availability[]>([])
+  const [upcomingAvailability, setUpcomingAvailability] = useState<Availability[]>([])
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [matrixActive, setMatrixActive] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [blockedTrack, setBlockedTrack] = useState<BlockedTrack | null>(null)
   const [newCode, setNewCode] = useState<string | null>(() => sessionStorage.getItem('new-member-code'))
+  const jackpotAudioRef = useRef<HTMLAudioElement | null>(null)
+  const marioAudioRef = useRef<HTMLAudioElement | null>(null)
+  const noticeTimerRef = useRef<number | null>(null)
+  const playedEventsRef = useRef(new Set<string>())
+
+  const showNotice = useCallback((message: string, duration = 5000) => {
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current)
+    setNotice(message)
+    noticeTimerRef.current = window.setTimeout(() => {
+      setNotice(null)
+      setBlockedTrack(null)
+    }, duration)
+  }, [])
+
+  const finishMatrix = useCallback(() => setMatrixActive(false), [])
+
+  useEffect(() => () => {
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current)
+  }, [])
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -87,6 +122,98 @@ export default function App() {
     })
     return () => data.subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL
+    jackpotAudioRef.current = new Audio(`${base}audio/JACKPOT.mp3`)
+    marioAudioRef.current = new Audio(`${base}audio/Mario.mp3`)
+
+    for (const audio of [jackpotAudioRef.current, marioAudioRef.current]) {
+      audio.preload = 'auto'
+      audio.loop = false
+    }
+
+    const unlock = () => {
+      window.removeEventListener('pointerdown', unlock, true)
+      window.removeEventListener('keydown', unlock, true)
+
+      const attempts = [jackpotAudioRef.current, marioAudioRef.current]
+        .filter((audio): audio is HTMLAudioElement => Boolean(audio))
+        .map(async (audio) => {
+          const previousVolume = audio.volume
+          audio.volume = 0
+          try {
+            // Oba play() są wywoływane podczas tej samej interakcji użytkownika.
+            await audio.play()
+          } catch {
+            // Część przeglądarek odblokuje dźwięk dopiero przy właściwym odtworzeniu.
+          } finally {
+            audio.pause()
+            audio.currentTime = 0
+            audio.volume = previousVolume
+          }
+        })
+
+      void Promise.allSettled(attempts)
+    }
+
+    window.addEventListener('pointerdown', unlock, true)
+    window.addEventListener('keydown', unlock, true)
+
+    return () => {
+      window.removeEventListener('pointerdown', unlock, true)
+      window.removeEventListener('keydown', unlock, true)
+      jackpotAudioRef.current?.pause()
+      marioAudioRef.current?.pause()
+    }
+  }, [])
+
+  const playTrack = useCallback(async (track: TrackName, day?: string) => {
+    const audio = track === 'jackpot' ? jackpotAudioRef.current : marioAudioRef.current
+    if (!audio) return
+
+    audio.pause()
+    audio.currentTime = 0
+    audio.loop = false
+
+    try {
+      await audio.play()
+      setBlockedTrack(null)
+      showNotice(
+        track === 'jackpot'
+          ? `🎉 JACKPOT! Wszystkim pasuje termin${day ? `: ${longDateLabel(day)}` : ''}.`
+          : '🍄 Nintendo! Kod został wpisany poprawnie.',
+        track === 'jackpot' ? 14_000 : 6000,
+      )
+    } catch {
+      setBlockedTrack({ track, day })
+      showNotice('Przeglądarka zablokowała automatyczne odtworzenie. Kliknij „Odtwórz”.', 12_000)
+    }
+  }, [showNotice])
+
+  useEffect(() => {
+    const sequence = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a']
+    let position = 0
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target?.matches('input, textarea, select, [contenteditable="true"]')) return
+
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
+      if (key === sequence[position]) {
+        position += 1
+        if (position === sequence.length) {
+          position = 0
+          void playTrack('mario')
+        }
+      } else {
+        position = key === sequence[0] ? 1 : 0
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [playTrack])
 
   const loadProfiles = useCallback(async () => {
     if (!session) return
@@ -110,18 +237,31 @@ export default function App() {
     setAvailability((data || []) as Availability[])
   }, [month, session])
 
+  const loadUpcomingAvailability = useCallback(async () => {
+    if (!session) return
+    const today = new Date()
+    const { data, error: queryError } = await supabase
+      .from('availability')
+      .select('*')
+      .gte('day', toDateKey(today))
+      .order('day')
+
+    if (queryError) throw queryError
+    setUpcomingAvailability((data || []) as Availability[])
+  }, [session])
+
   const loadAll = useCallback(async () => {
     if (!session) return
     setLoading(true)
     setError(null)
     try {
-      await Promise.all([loadProfiles(), loadAvailability()])
+      await Promise.all([loadProfiles(), loadAvailability(), loadUpcomingAvailability()])
     } catch {
       setError('Nie udało się pobrać danych. Konto mogło zostać zablokowane albo sesja wygasła.')
     } finally {
       setLoading(false)
     }
-  }, [loadAvailability, loadProfiles, session])
+  }, [loadAvailability, loadProfiles, loadUpcomingAvailability, session])
 
   useEffect(() => { void loadAll() }, [loadAll])
 
@@ -129,11 +269,28 @@ export default function App() {
     if (!session) return
     const channel = supabase
       .channel('meeting-calendar-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'availability' }, () => void loadAvailability())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'availability' }, () => {
+        void Promise.all([loadAvailability(), loadUpcomingAvailability()])
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => void loadProfiles())
       .subscribe()
     return () => { void supabase.removeChannel(channel) }
-  }, [loadAvailability, loadProfiles, session])
+  }, [loadAvailability, loadProfiles, loadUpcomingAvailability, session])
+
+  useEffect(() => {
+    if (!session) return
+    const channel = supabase
+      .channel('meeting-jackpot-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'meeting_events' }, (payload) => {
+        const event = payload.new as MeetingEvent
+        if (event.event_type !== 'jackpot' || playedEventsRef.current.has(event.id)) return
+        playedEventsRef.current.add(event.id)
+        void playTrack('jackpot', event.day)
+      })
+      .subscribe()
+
+    return () => { void supabase.removeChannel(channel) }
+  }, [playTrack, session])
 
   useEffect(() => {
     if (!session) {
@@ -211,7 +368,7 @@ export default function App() {
       setError('Nie udało się zapisać odpowiedzi.')
       return
     }
-    await loadAvailability()
+    await Promise.all([loadAvailability(), loadUpcomingAvailability()])
     setSelectedDay(null)
   }
 
@@ -227,9 +384,19 @@ export default function App() {
   if (!loading && !error && profiles.length === 0) return <AccessDenied />
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout${currentProfile?.colorblind_mode ? ' colorblind-mode' : ''}`}>
       <header className="topbar">
-        <div className="brand-inline"><Handshake size={27} /><span>Harmonogram spotkań</span></div>
+        <div className="brand-and-chat">
+          <div className="brand-inline">
+            <button className="matrix-secret-trigger" type="button" onClick={() => setMatrixActive((active) => !active)} aria-label="Logo Harmonogramu spotkań">
+              <Handshake size={27} />
+            </button>
+            <span>Harmonogram spotkań</span>
+          </div>
+          <button className="chat-trigger" type="button" onClick={() => setChatOpen(true)}>
+            <MessageCircle size={18} /><span>Czat</span>
+          </button>
+        </div>
         <div className="topbar-actions">
           {isAdmin && (
             <button className="secondary-button compact admin-trigger" type="button" onClick={() => setAdminOpen(true)}>
@@ -259,11 +426,7 @@ export default function App() {
         )}
 
         <section className="page-heading">
-          <div>
-            <p className="eyebrow"><UsersRound size={15} /> {profiles.length} {profiles.length === 1 ? 'uczestnik' : 'uczestników'} w grupie</p>
-            <h1>Wybierz dzień i określ swoją dostępność</h1>
-            <p>Wybierz: „Pasuje mi”, „Jeszcze nie wiem” albo „Nie da rady”. Możesz też dopisać godziny i miejsce.</p>
-          </div>
+          <UpcomingDates profiles={profiles} availability={upcomingAvailability} />
           <button className="secondary-button" type="button" onClick={() => void loadAll()} disabled={loading}>
             <RefreshCw size={17} className={loading ? 'spin' : ''} /> Odśwież
           </button>
@@ -324,6 +487,25 @@ export default function App() {
           onClose={() => setAdminOpen(false)}
           onUsersChanged={loadProfiles}
         />
+      )}
+
+      {chatOpen && (
+        <ChatPanel
+          profiles={profiles}
+          currentUserId={session.user.id}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
+
+      <MatrixRain active={matrixActive} onFinish={finishMatrix} />
+
+      {notice && (
+        <aside className="audio-notice" role="status">
+          <span>{notice}</span>
+          {blockedTrack && (
+            <button type="button" onClick={() => void playTrack(blockedTrack.track, blockedTrack.day)}>Odtwórz</button>
+          )}
+        </aside>
       )}
     </div>
   )

@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.110.0/cors'
 
-type Action = 'status' | 'touch' | 'list' | 'invite' | 'set-active' | 'delete-user'
+type Action = 'status' | 'touch' | 'list' | 'invite' | 'set-active' | 'set-colorblind' | 'delete-user'
 
 const headers = {
   ...corsHeaders,
@@ -54,6 +54,7 @@ Deno.serve(async (request) => {
       action?: Action
       userId?: string
       active?: boolean
+      enabled?: boolean
     }
 
     const { data: callerProfile, error: callerProfileError } = await admin
@@ -89,7 +90,7 @@ Deno.serve(async (request) => {
 
     if (body.action === 'list') {
       const [{ data: profiles, error: profilesError }, { data: activity, error: activityError }, { data: admins, error: adminsError }] = await Promise.all([
-        admin.from('profiles').select('id, member_code, display_name, avatar_path, is_active, created_at').order('display_name'),
+        admin.from('profiles').select('id, member_code, display_name, avatar_path, is_active, colorblind_mode, created_at').order('display_name'),
         admin.from('user_activity').select('user_id, last_seen_at'),
         admin.from('admin_users').select('user_id'),
       ])
@@ -146,6 +147,19 @@ Deno.serve(async (request) => {
       if (error) throw error
 
       if (!body.active) await admin.from('user_activity').delete().eq('user_id', body.userId)
+      return json({ ok: true })
+    }
+
+    if (body.action === 'set-colorblind') {
+      if (!isUuid(body.userId) || typeof body.enabled !== 'boolean') {
+        return json({ error: 'Nieprawidłowe dane trybu daltonisty.' }, 400)
+      }
+
+      const { error } = await admin
+        .from('profiles')
+        .update({ colorblind_mode: body.enabled })
+        .eq('id', body.userId)
+      if (error) throw error
       return json({ ok: true })
     }
 

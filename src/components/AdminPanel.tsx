@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, Check, Copy, RefreshCw, ShieldCheck, Trash2, UserCheck, UserPlus, UsersRound, X } from 'lucide-react'
+import { Accessibility, Ban, Check, Copy, RefreshCw, ShieldCheck, Trash2, UserCheck, UserPlus, UsersRound, X } from 'lucide-react'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
@@ -11,6 +11,7 @@ interface AdminUser {
   avatar_url: string | null
   is_active: boolean
   is_admin: boolean
+  colorblind_mode: boolean
   created_at: string
   last_seen_at: string | null
 }
@@ -134,6 +135,22 @@ export function AdminPanel({ currentUserId, onClose, onUsersChanged }: AdminPane
     }
   }
 
+  const setColorblind = async (user: AdminUser, enabled: boolean) => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      await invoke({ action: 'set-colorblind', userId: user.id, enabled })
+      await Promise.all([loadUsers(true), onUsersChanged()])
+      setMessage(enabled
+        ? `Tryb daltonisty został włączony dla „${user.display_name}”.`
+        : `Tryb daltonisty został wyłączony dla „${user.display_name}”.`)
+    } catch (error) {
+      setMessage(await readFunctionError(error, 'Nie udało się zmienić trybu daltonisty.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const deleteUser = async (user: AdminUser) => {
     if (!window.confirm(`Trwale usunąć konto „${user.display_name}” wraz z jego terminami? Tej operacji nie można cofnąć.`)) return
     setBusy(true)
@@ -215,6 +232,7 @@ export function AdminPanel({ currentUserId, onClose, onUsersChanged }: AdminPane
                       <span className={user.is_active ? 'account-active-badge' : 'account-blocked-badge'}>
                         {user.is_active ? 'Aktywne' : 'Zablokowane'}
                       </span>
+                      {user.colorblind_mode && <span className="colorblind-badge">Tryb daltonisty</span>}
                     </div>
                     <code>{user.member_code}</code>
                     <dl className="admin-user-meta">
@@ -224,6 +242,14 @@ export function AdminPanel({ currentUserId, onClose, onUsersChanged }: AdminPane
                     </dl>
                   </div>
                   <div className="admin-user-actions">
+                    <button
+                      className={`accessibility-button compact${user.colorblind_mode ? ' enabled' : ''}`}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void setColorblind(user, !user.colorblind_mode)}
+                    >
+                      <Accessibility size={16} /> {user.colorblind_mode ? 'Daltonista: włączony' : 'Daltonista: wyłączony'}
+                    </button>
                     {user.is_active ? (
                       <button className="warning-button compact" type="button" disabled={busy || own || user.is_admin} onClick={() => void setActive(user, false)}>
                         <Ban size={16} /> Zablokuj
