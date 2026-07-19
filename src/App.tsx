@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { CalendarDays, ChevronLeft, ChevronRight, Handshake, LogOut, MessageCircle, RefreshCw, Settings, ShieldCheck, UsersRound } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, LogOut, MessageCircle, RefreshCw, Settings, ShieldCheck, UsersRound } from 'lucide-react'
 import { AdminPanel } from './components/AdminPanel'
 import { AuthScreen } from './components/AuthScreen'
 import { Avatar } from './components/Avatar'
 import { CalendarView } from './components/CalendarView'
 import { ChatPanel } from './components/ChatPanel'
 import { DayDialog } from './components/DayDialog'
-import { MatrixRain } from './components/MatrixRain'
+import { SecretVideo } from './components/SecretVideo'
 import { ProfileDialog } from './components/ProfileDialog'
 import { UpcomingDates } from './components/UpcomingDates'
 import { addMonths, endOfMonth, longDateLabel, monthLabel, startOfMonth, toDateKey } from './lib/date'
@@ -79,7 +79,7 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
-  const [matrixActive, setMatrixActive] = useState(false)
+  const [secretVideoActive, setSecretVideoActive] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -101,7 +101,7 @@ export default function App() {
     }, duration)
   }, [])
 
-  const finishMatrix = useCallback(() => setMatrixActive(false), [])
+  const finishSecretVideo = useCallback(() => setSecretVideoActive(false), [])
 
   useEffect(() => () => {
     if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current)
@@ -182,7 +182,7 @@ export default function App() {
       showNotice(
         track === 'jackpot'
           ? `🎉 JACKPOT! Wszystkim pasuje termin${day ? `: ${longDateLabel(day)}` : ''}.`
-          : '🍄 Nintendo! Kod został wpisany poprawnie.',
+          : '[contra]Konami code został wpisany poprawnie.',
         track === 'jackpot' ? 14_000 : 6000,
       )
     } catch {
@@ -388,8 +388,13 @@ export default function App() {
       <header className="topbar">
         <div className="brand-and-chat">
           <div className="brand-inline">
-            <button className="matrix-secret-trigger" type="button" onClick={() => setMatrixActive((active) => !active)} aria-label="Logo Harmonogramu spotkań">
-              <Handshake size={27} />
+            <button className="matrix-secret-trigger" type="button" onClick={() => setSecretVideoActive(true)} aria-label="Logo Harmonogramu spotkań">
+              <img
+  className="solaire-secret-icon"
+  src={`${import.meta.env.BASE_URL}icons/Solaire.webp`}
+  alt=""
+  aria-hidden="true"
+/>
             </button>
             <span>Harmonogram spotkań</span>
           </div>
@@ -497,11 +502,20 @@ export default function App() {
         />
       )}
 
-      <MatrixRain active={matrixActive} onFinish={finishMatrix} />
+      <SecretVideo active={secretVideoActive} onFinish={finishSecretVideo} />
 
       {notice && (
         <aside className="audio-notice" role="status">
-          <span>{notice}</span>
+          <span className="audio-notice-message">
+            {notice.startsWith('[contra]') && (
+              <img
+                className="contra-code-icon"
+                src={`${import.meta.env.BASE_URL}icons/ContraC.png`}
+                alt="C"
+              />
+            )}
+            {notice.replace('[contra]', '')}
+          </span>
           {blockedTrack && (
             <button type="button" onClick={() => void playTrack(blockedTrack.track, blockedTrack.day)}>Odtwórz</button>
           )}
@@ -510,3 +524,7 @@ export default function App() {
     </div>
   )
 }
+
+
+
+
