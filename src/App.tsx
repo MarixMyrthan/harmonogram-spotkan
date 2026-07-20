@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { CalendarDays, ChevronLeft, ChevronRight, LogOut, MessageCircle, RefreshCw, Settings, ShieldCheck, UsersRound } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Lightbulb, LogOut, MessageCircle, RefreshCw, Settings, ShieldCheck, UsersRound } from 'lucide-react'
 import { AdminPanel } from './components/AdminPanel'
 import { AuthScreen } from './components/AuthScreen'
 import { Avatar } from './components/Avatar'
 import { CalendarView } from './components/CalendarView'
 import { ChatPanel } from './components/ChatPanel'
 import { DayDialog } from './components/DayDialog'
+import { IdeasPanel } from './components/IdeasPanel'
 import { SecretVideo } from './components/SecretVideo'
 import { ProfileDialog } from './components/ProfileDialog'
 import { UpcomingDates } from './components/UpcomingDates'
 import { addMonths, endOfMonth, longDateLabel, monthLabel, startOfMonth, toDateKey } from './lib/date'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
-import type { Availability, AvailabilityStatus, MeetingEvent, Profile } from './types'
+import type { Availability, AvailabilityStatus, MeetingEvent, MeetingIdea, MeetingIdeaVote, Profile } from './types'
 
 type TrackName = 'jackpot' | 'mario'
 
@@ -75,10 +76,13 @@ export default function App() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [availability, setAvailability] = useState<Availability[]>([])
   const [upcomingAvailability, setUpcomingAvailability] = useState<Availability[]>([])
+  const [meetingIdeas, setMeetingIdeas] = useState<MeetingIdea[]>([])
+  const [ideaVotes, setIdeaVotes] = useState<MeetingIdeaVote[]>([])
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [ideasOpen, setIdeasOpen] = useState(false)
   const [secretVideoActive, setSecretVideoActive] = useState(false)
   const [praiseActive, setPraiseActive] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -337,18 +341,51 @@ export default function App() {
     setUpcomingAvailability((data || []) as Availability[])
   }, [session])
 
+
+  const loadIdeas = useCallback(async () => {
+    if (!session) return
+
+    const { error: cleanupError } = await supabase.rpc('cleanup_expired_meeting_ideas')
+    if (cleanupError) console.warn('Nie udało się wyczyścić przeterminowanych pomysłów.', cleanupError)
+
+    const { data: ideasData, error: ideasError } = await supabase
+      .from('meeting_ideas')
+      .select('*')
+      .gte('day', toDateKey(new Date()))
+      .order('day')
+      .order('created_at')
+
+    if (ideasError) throw ideasError
+
+    const resolvedIdeas = (ideasData || []) as MeetingIdea[]
+    setMeetingIdeas(resolvedIdeas)
+
+    if (resolvedIdeas.length === 0) {
+      setIdeaVotes([])
+      return
+    }
+
+    const { data: votesData, error: votesError } = await supabase
+      .from('meeting_idea_votes')
+      .select('*')
+      .in('idea_id', resolvedIdeas.map((idea) => idea.id))
+
+    if (votesError) throw votesError
+    setIdeaVotes((votesData || []) as MeetingIdeaVote[])
+  }, [session])
+
   const loadAll = useCallback(async () => {
     if (!session) return
     setLoading(true)
     setError(null)
     try {
-      await Promise.all([loadProfiles(), loadAvailability(), loadUpcomingAvailability()])
+      await Promise.all([loadProfiles(), loadAvailability(), loadUpcomingAvailability(), loadIdeas()])
     } catch {
       setError('Nie udało się pobrać danych. Konto mogło zostać zablokowane albo sesja wygasła.')
     } finally {
       setLoading(false)
     }
-  }, [loadAvailability, loadProfiles, loadUpcomingAvailability, session])
+  }, [loadAvailability, loadIdeas, loadProfiles, loadUpcomingAvailability, session])
 
   useEffect(() => { void loadAll() }, [loadAll])
 
@@ -363,6 +400,19 @@ export default function App() {
       .subscribe()
     return () => { void supabase.removeChannel(channel) }
   }, [loadAvailability, loadProfiles, loadUpcomingAvailability, session])
+
+
+  useEffect(() => {
+    if (!session) return
+
+    const channel = supabase
+      .channel('meeting-ideas-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_ideas' }, () => void loadIdeas())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_idea_votes' }, () => void loadIdeas())
+      .subscribe()
+
+    return () => { void supabase.removeChannel(channel) }
+  }, [loadIdeas, session])
 
   useEffect(() => {
     if (!session) return
@@ -488,6 +538,9 @@ export default function App() {
           <button className="chat-trigger" type="button" onClick={() => setChatOpen(true)}>
             <MessageCircle size={18} /><span>Czat</span>
           </button>
+          <button className="ideas-trigger" type="button" onClick={() => setIdeasOpen(true)}>
+            <Lightbulb size={18} /><span>Pomysły – głosowanie</span>
+          </button>
         </div>
         <div className="topbar-actions">
           {isAdmin && (
@@ -518,7 +571,12 @@ export default function App() {
         )}
 
         <section className="page-heading">
-          <UpcomingDates profiles={profiles} availability={upcomingAvailability} />
+          <UpcomingDates
+            profiles={profiles}
+            availability={upcomingAvailability}
+            ideas={meetingIdeas}
+            votes={ideaVotes}
+          />
           <button className="secondary-button" type="button" onClick={() => void loadAll()} disabled={loading}>
             <RefreshCw size={17} className={loading ? 'spin' : ''} /> Odśwież
           </button>
@@ -589,6 +647,20 @@ export default function App() {
         />
       )}
 
+
+      {ideasOpen && (
+        <IdeasPanel
+          profiles={profiles}
+          availability={upcomingAvailability}
+          ideas={meetingIdeas}
+          votes={ideaVotes}
+          currentUserId={session.user.id}
+          isAdmin={isAdmin}
+          onClose={() => setIdeasOpen(false)}
+          onDataChanged={loadIdeas}
+        />
+      )}
+
       <SecretVideo active={secretVideoActive} onFinish={finishSecretVideo} />
 
       {praiseActive && (
@@ -637,8 +709,3 @@ export default function App() {
     </div>
   )
 }
-
-
-
-
-

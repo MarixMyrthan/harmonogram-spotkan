@@ -2,16 +2,25 @@ import { CalendarCheck2, Mail } from 'lucide-react'
 import { useMemo } from 'react'
 import { longDateLabel } from '../lib/date'
 import { findUpcomingDates } from '../lib/upcomingDates'
-import type { Availability, Profile } from '../types'
+import type {
+  Availability,
+  MeetingIdea,
+  MeetingIdeaVote,
+  Profile,
+} from '../types'
 
 interface UpcomingDatesProps {
   profiles: Profile[]
   availability: Availability[]
+  ideas: MeetingIdea[]
+  votes: MeetingIdeaVote[]
 }
 
 export function UpcomingDates({
   profiles,
   availability,
+  ideas,
+  votes,
 }: UpcomingDatesProps) {
   const dates = useMemo(
     () => findUpcomingDates(profiles, availability),
@@ -22,6 +31,26 @@ export function UpcomingDates({
     () => new Map(profiles.map((profile) => [profile.id, profile])),
     [profiles],
   )
+
+  const acceptedIdeasByDay = useMemo(() => {
+    const upCountByIdea = new Map<string, number>()
+
+    for (const vote of votes) {
+      if (vote.vote !== 'up') continue
+      upCountByIdea.set(vote.idea_id, (upCountByIdea.get(vote.idea_id) || 0) + 1)
+    }
+
+    const byDay = new Map<string, MeetingIdea[]>()
+
+    for (const idea of ideas) {
+      if (profiles.length === 0 || (upCountByIdea.get(idea.id) || 0) < profiles.length) continue
+      const list = byDay.get(idea.day) || []
+      list.push(idea)
+      byDay.set(idea.day, list)
+    }
+
+    return byDay
+  }, [ideas, profiles.length, votes])
 
   return (
     <section
@@ -50,58 +79,77 @@ export function UpcomingDates({
           <table className="upcoming-table">
             <thead>
               <tr>
+                <th>Pomysł</th>
                 <th>Termin</th>
                 <th>Uczestnicy</th>
               </tr>
             </thead>
 
             <tbody>
-              {dates.map((date) => (
-                <tr key={date.day}>
-                  <td>
-                    <time dateTime={date.day}>
-                      {longDateLabel(date.day)}
-                    </time>
-                  </td>
+              {dates.map((date) => {
+                const acceptedIdeas = acceptedIdeasByDay.get(date.day) || []
 
-                  <td>
-                    <div className="mini-names upcoming-participants">
-                      <div className="mini-name-list">
-                        {date.entries.map((entry) => {
-                          const hasExtraInfo = Boolean(
-                            entry.note?.trim() || entry.place?.trim(),
-                          )
-
-                          return (
-                            <span
-                              className={`status-pill status-${entry.status}`}
-                              key={entry.user_id}
-                              title={
-                                hasExtraInfo
-                                  ? 'Dodano godziny, uwagę lub propozycję miejsca'
-                                  : undefined
-                              }
-                            >
-                              {
-                                profileById.get(entry.user_id)
-                                  ?.display_name
-                              }
-
-                              {hasExtraInfo && (
-                                <Mail
-                                  className="note-indicator"
-                                  size={11}
-                                  aria-hidden="true"
-                                />
-                              )}
+                return (
+                  <tr key={date.day}>
+                    <td className="upcoming-ideas-cell">
+                      {acceptedIdeas.length === 0 ? (
+                        <span className="upcoming-no-idea">—</span>
+                      ) : (
+                        <div className="upcoming-idea-list">
+                          {acceptedIdeas.map((idea) => (
+                            <span className="upcoming-idea-chip" key={idea.id}>
+                              {idea.title}
                             </span>
-                          )
-                        })}
+                          ))}
+                        </div>
+                      )}
+                    </td>
+
+                    <td>
+                      <time dateTime={date.day}>
+                        {longDateLabel(date.day)}
+                      </time>
+                    </td>
+
+                    <td>
+                      <div className="mini-names upcoming-participants">
+                        <div className="mini-name-list">
+                          {date.entries.map((entry) => {
+                            const hasExtraInfo = Boolean(
+                              entry.note?.trim() || entry.place?.trim(),
+                            )
+
+                            return (
+                              <span
+                                className={`status-pill status-${entry.status}`}
+                                key={entry.user_id}
+                                title={
+                                  hasExtraInfo
+                                    ? 'Dodano godziny, uwagę lub propozycję miejsca'
+                                    : undefined
+                                }
+                              >
+                                {
+                                  profileById.get(entry.user_id)
+                                    ?.display_name
+                                }
+
+                                {hasExtraInfo && (
+                                  <Mail
+                                    className="note-indicator"
+                                    size={11}
+                                    aria-hidden="true"
+                                  />
+                                )}
+                              </span>
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

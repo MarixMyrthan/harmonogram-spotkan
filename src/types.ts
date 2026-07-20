@@ -36,3 +36,21 @@ export interface MeetingEvent {
   day: string
   created_at: string
 }
+
+export type MeetingIdeaVoteValue = 'up' | 'down'
+
+export interface MeetingIdea {
+  id: string
+  author_id: string
+  day: string
+  title: string
+  created_at: string
+}
+
+export interface MeetingIdeaVote {
+  idea_id: string
+  user_id: string
+  vote: MeetingIdeaVoteValue
+  created_at: string
+  updated_at: string
+}
