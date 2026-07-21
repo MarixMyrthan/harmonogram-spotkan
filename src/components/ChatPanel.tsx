@@ -50,16 +50,21 @@ export function ChatPanel({ profiles, currentUserId, onClose }: ChatPanelProps) 
   useEffect(() => {
     const channel = supabase
       .channel('meeting-chat-live')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
-        const incoming = payload.new as ChatMessage
-        setMessages((current) => current.some((message) => message.id === incoming.id)
-          ? current
-          : [...current, incoming].slice(-100))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const incoming = payload.new as ChatMessage
+          setMessages((current) => current.some((message) => message.id === incoming.id)
+            ? current
+            : [...current, incoming].slice(-100))
+          return
+        }
+
+        void loadMessages()
       })
       .subscribe()
 
     return () => { void supabase.removeChannel(channel) }
-  }, [])
+  }, [loadMessages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: messages.length > 1 ? 'smooth' : 'auto' })

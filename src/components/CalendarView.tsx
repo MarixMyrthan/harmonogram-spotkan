@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Check, CircleHelp, Mail, UsersRound, X } from 'lucide-react'
+import { Check, CircleHelp, Mail, Pin, UsersRound, X } from 'lucide-react'
 import type { Availability, Profile } from '../types'
 import { buildMonthGrid, toDateKey, WEEKDAYS } from '../lib/date'
 
@@ -8,6 +8,8 @@ interface CalendarViewProps {
   profiles: Profile[]
   availability: Availability[]
   currentUserId: string
+  protectedDays: string[]
+  showProtectionMarks: boolean
   onSelectDay: (day: string) => void
 }
 
@@ -37,9 +39,18 @@ function getDayDescription(entries: Availability[], profileCount: number): strin
   return `${entries.length} z ${profileCount} osób zaznaczyło „Pasuje mi”`
 }
 
-export function CalendarView({ month, profiles, availability, currentUserId, onSelectDay }: CalendarViewProps) {
+export function CalendarView({
+  month,
+  profiles,
+  availability,
+  currentUserId,
+  protectedDays,
+  showProtectionMarks,
+  onSelectDay,
+}: CalendarViewProps) {
   const cells = useMemo(() => buildMonthGrid(month), [month])
   const today = toDateKey(new Date())
+  const protectedDaySet = useMemo(() => new Set(protectedDays), [protectedDays])
   const byDay = useMemo(() => {
     const map = new Map<string, Availability[]>()
     for (const entry of availability) {
@@ -66,14 +77,15 @@ export function CalendarView({ month, profiles, availability, currentUserId, onS
           const statusClass = getDayClass(entries, profiles.length)
           const visibleEntries = entries.slice(0, 5)
           const hiddenCount = Math.max(0, entries.length - visibleEntries.length)
+          const protectedFromCleanup = protectedDaySet.has(key)
 
           return (
             <button
               type="button"
-              className={`calendar-day${statusClass}${ownEntry ? ' own' : ''}${key === today ? ' today' : ''}`}
+              className={`calendar-day${statusClass}${ownEntry ? ' own' : ''}${key === today ? ' today' : ''}${protectedFromCleanup ? ' cleanup-protected' : ''}`}
               key={key}
               onClick={() => onSelectDay(key)}
-              aria-label={`${key}: ${getDayDescription(entries, profiles.length)}`}
+              aria-label={`${key}: ${getDayDescription(entries, profiles.length)}${protectedFromCleanup ? ', chroniony przed automatycznym usunięciem' : ''}`}
             >
               <span className="day-number">{date.getDate()}</span>
               {ownEntry && (
@@ -81,6 +93,11 @@ export function CalendarView({ month, profiles, availability, currentUserId, onS
                   {ownEntry.status === 'available' && <Check size={14} />}
                   {ownEntry.status === 'unsure' && <CircleHelp size={14} />}
                   {ownEntry.status === 'unavailable' && <X size={14} />}
+                </span>
+              )}
+              {showProtectionMarks && protectedFromCleanup && (
+                <span className="retention-mark" title="Termin nie zostanie usunięty automatycznie">
+                  <Pin size={13} />
                 </span>
               )}
               <div className="day-summary">

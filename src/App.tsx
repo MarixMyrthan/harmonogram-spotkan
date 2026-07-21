@@ -8,10 +8,13 @@ import { CalendarView } from './components/CalendarView'
 import { ChatPanel } from './components/ChatPanel'
 import { DayDialog } from './components/DayDialog'
 import { IdeasPanel } from './components/IdeasPanel'
+import { SecretPanel } from './components/SecretPanel'
 import { SecretVideo } from './components/SecretVideo'
+import { SolaireTrigger } from './components/SolaireTrigger'
 import { ProfileDialog } from './components/ProfileDialog'
 import { UpcomingDates } from './components/UpcomingDates'
 import { addMonths, endOfMonth, longDateLabel, monthLabel, startOfMonth, toDateKey } from './lib/date'
+import { detectClientInfo } from './lib/clientInfo'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import type { Availability, AvailabilityStatus, MeetingEvent, MeetingIdea, MeetingIdeaVote, Profile } from './types'
 
@@ -78,16 +81,19 @@ export default function App() {
   const [upcomingAvailability, setUpcomingAvailability] = useState<Availability[]>([])
   const [meetingIdeas, setMeetingIdeas] = useState<MeetingIdea[]>([])
   const [ideaVotes, setIdeaVotes] = useState<MeetingIdeaVote[]>([])
+  const [protectedDays, setProtectedDays] = useState<string[]>([])
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [ideasOpen, setIdeasOpen] = useState(false)
+  const [secretPanelOpen, setSecretPanelOpen] = useState(false)
   const [secretVideoActive, setSecretVideoActive] = useState(false)
   const [praiseActive, setPraiseActive] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [protectionBusy, setProtectionBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [blockedTrack, setBlockedTrack] = useState<BlockedTrack | null>(null)
@@ -269,7 +275,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [playTrack])
   useEffect(() => {
-    const praisePhrase = 'Praise the Sun'
+    const praisePhrase = 'Praise the Sun!'
     let position = 0
 
     const handlePraiseKeys = (event: KeyboardEvent) => {
@@ -345,9 +351,6 @@ export default function App() {
   const loadIdeas = useCallback(async () => {
     if (!session) return
 
-    const { error: cleanupError } = await supabase.rpc('cleanup_expired_meeting_ideas')
-    if (cleanupError) console.warn('Nie udało się wyczyścić przeterminowanych pomysłów.', cleanupError)
-
     const { data: ideasData, error: ideasError } = await supabase
       .from('meeting_ideas')
       .select('*')
@@ -372,6 +375,21 @@ export default function App() {
 
     if (votesError) throw votesError
     setIdeaVotes((votesData || []) as MeetingIdeaVote[])
+  }, [session])
+
+  const loadProtectedDays = useCallback(async () => {
+    if (!session) return
+
+    const { data, error: protectedDaysError } = await supabase.functions.invoke('admin-control', {
+      body: { action: 'protected-days' },
+    })
+
+    if (protectedDaysError) {
+      console.warn('Nie udało się pobrać chronionych terminów.', protectedDaysError)
+      return
+    }
+
+    setProtectedDays(Array.isArray(data?.days) ? data.days.map(String) : [])
   }, [session])
 
   const loadAll = useCallback(async () => {
@@ -432,13 +450,18 @@ export default function App() {
   useEffect(() => {
     if (!session) {
       setIsAdmin(false)
+      setProtectedDays([])
       return
     }
 
     supabase.functions.invoke('admin-control', { body: { action: 'status' } })
-      .then(({ data, error }) => setIsAdmin(!error && Boolean(data?.isAdmin)))
+      .then(({ data, error }) => {
+        const admin = !error && Boolean(data?.isAdmin)
+        setIsAdmin(admin)
+        if (admin) void loadProtectedDays()
+      })
       .catch(() => setIsAdmin(false))
-  }, [session])
+  }, [loadProtectedDays, session])
 
   useEffect(() => {
     if (!session) return
@@ -446,11 +469,14 @@ export default function App() {
     const isLocal = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
     if (isLocal) return
 
+    const clientInfoPromise = detectClientInfo()
+
     const touch = async () => {
       if (document.visibilityState !== 'visible') return
 
+      const clientInfo = await clientInfoPromise
       const { error: touchError } = await supabase.functions.invoke('admin-control', {
-        body: { action: 'touch' },
+        body: { action: 'touch', ...clientInfo },
       })
 
       if (touchError) console.warn('Nie udało się zapisać aktywności użytkownika.', touchError)
@@ -509,6 +535,32 @@ export default function App() {
     setSelectedDay(null)
   }
 
+  const toggleDayProtection = async (day: string, protectedFromCleanup: boolean) => {
+    if (!isAdmin || protectionBusy) return
+
+    setProtectionBusy(true)
+    setError(null)
+
+    const { error: protectionError } = await supabase.functions.invoke('admin-control', {
+      body: {
+        action: 'set-day-protection',
+        day,
+        protected: protectedFromCleanup,
+      },
+    })
+
+    setProtectionBusy(false)
+
+    if (protectionError) {
+      setError('Nie udało się zmienić ochrony terminu przed automatycznym usunięciem.')
+      return
+    }
+
+    setProtectedDays((current) => protectedFromCleanup
+      ? [...new Set([...current, day])]
+      : current.filter((item) => item !== day))
+  }
+
   const dismissNewCode = () => {
     sessionStorage.removeItem('new-member-code')
     setNewCode(null)
@@ -525,14 +577,10 @@ export default function App() {
       <header className="topbar">
         <div className="brand-and-chat">
           <div className="brand-inline">
-            <button className="matrix-secret-trigger" type="button" onClick={() => setSecretVideoActive(true)} aria-label="Logo Harmonogramu spotkań">
-              <img
-  className="solaire-secret-icon"
-  src={`${import.meta.env.BASE_URL}icons/Solaire.webp`}
-  alt=""
-  aria-hidden="true"
-/>
-            </button>
+            <SolaireTrigger
+              onActivate={() => setSecretVideoActive(true)}
+              onLongPress={() => setSecretPanelOpen(true)}
+            />
             <span>Harmonogram spotkań</span>
           </div>
           <button className="chat-trigger" type="button" onClick={() => setChatOpen(true)}>
@@ -599,6 +647,8 @@ export default function App() {
             profiles={profiles}
             availability={availability}
             currentUserId={session.user.id}
+            protectedDays={protectedDays}
+            showProtectionMarks={isAdmin}
             onSelectDay={setSelectedDay}
           />
 
@@ -618,8 +668,12 @@ export default function App() {
           availability={selectedAvailability}
           currentUserId={session.user.id}
           busy={saving}
+          isAdmin={isAdmin}
+          protectedFromCleanup={protectedDays.includes(selectedDay)}
+          protectionBusy={protectionBusy}
           onClose={() => setSelectedDay(null)}
           onSave={saveDay}
+          onToggleProtection={(protectedFromCleanup) => void toggleDayProtection(selectedDay, protectedFromCleanup)}
         />
       )}
 
@@ -658,6 +712,14 @@ export default function App() {
           isAdmin={isAdmin}
           onClose={() => setIdeasOpen(false)}
           onDataChanged={loadIdeas}
+        />
+      )}
+
+      {secretPanelOpen && (
+        <SecretPanel
+          onClose={() => setSecretPanelOpen(false)}
+          onPraise={triggerPraise}
+          onKonami={() => void playTrack('mario')}
         />
       )}
 
