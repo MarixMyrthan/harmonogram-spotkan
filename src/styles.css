@@ -304,9 +304,9 @@ input:disabled, textarea:disabled { background: #f2f3f6; color: #9aa2b1; }
 
 /* Wersja 3.0: czat, najbliższe terminy, dostępność i easter eggi */
 .brand-and-chat { display: flex; align-items: center; gap: .8rem; min-width: 0; }
-.solaire-secret-trigger { position: relative; display: inline-grid; place-items: center; width: 38px; height: 38px; margin: 0; padding: 3px; border: 0; border-radius: 11px; background: transparent; color: var(--primary); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.solaire-secret-trigger { position: relative; display: inline-grid; place-items: center; width: 42px; height: 42px; margin: 0; padding: 2px; border: 0; border-radius: 12px; background: transparent; color: var(--primary); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .solaire-secret-trigger:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 35%, transparent); }
-.solaire-hold-ring { position: absolute; inset: -2px; width: 42px; height: 42px; pointer-events: none; transform: rotate(-90deg); overflow: visible; }
+.solaire-hold-ring { position: absolute; inset: -2px; width: 46px; height: 46px; pointer-events: none; transform: rotate(-90deg); overflow: visible; }
 .solaire-hold-ring circle { fill: none; stroke: var(--warning); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0; }
 .solaire-secret-trigger.holding .solaire-hold-ring circle { animation: solaire-hold-progress 3000ms linear 2000ms forwards; }
 @keyframes solaire-hold-progress {
@@ -448,8 +448,8 @@ input:disabled, textarea:disabled { background: #f2f3f6; color: #9aa2b1; }
 
 .solaire-secret-icon {
   display: block;
-  width: 31px;
-  height: 31px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
   pointer-events: none;
 }
